@@ -1,11 +1,7 @@
+#include "kernel.cuh"
+
 #include <stdint.h>
 #include <cuda.h>
-
-
-extern "C" {
-__global__
-void mul(float *a, float *b, float *c, int n);
-}
 
 __global__
 void mul(float *a, float *b, float *c, int n)

@@ -2,71 +2,24 @@ SRCS_CU=aes_cuda.cu gpu_aes_gcm.cu
 SRCS_C=aes_gcm.c
 OBJS=$(SRCS_C:.c=.o)
 
-#on ARM, you may wat to try gcc-4.7 & g++-4.7 over 4.8
 CC=gcc
 CXX=g++
+NVCC=nvcc
+MPICC=mpicc
 
 GCM_CUDA_CHUNK_SIZE="(2*1024*1024)"
 
-ARCH=$(shell arch)
-HOSTNAME=$(shell hostname)
 
-ifeq ($(ARCH),armv7l)
-	CUDA_INSTALL_PATH=/usr/local/cuda-6.5
-	GENCODE=arch=compute_32,code=sm_32
-	ifeq ($(HOSTNAME),jetsontk1)
-		NVCCFLAGS=-g -O3 -gencode $(GENCODE) -Xcompiler -mcpu=cortex-a15 -Xcompiler -O3 -Xcompiler -fomit-frame-pointer -Xcompiler -mfloat-abi=hard -Xcompiler -mfpu=neon -ccbin $(CXX)
-		CFLAGS=-O3 -fomit-frame-pointer -mcpu=cortex-a15 -mfloat-abi=hard -mfpu=neon
-	endif
-        ifeq ($(HOSTNAME),beaglebone)
-                NVCCFLAGS=-g -O3 -gencode $(GENCODE) -Xcompiler -mcpu=cortex-a8 -Xcompiler -O3 -Xcompiler -fomit-frame-pointer -Xcompiler -mfloat-abi=hard -Xcompiler -mfpu=neon -ccbin $(CXX) -DGCM_CUDA_MAX_SIZE="(32*1024*1024)"
-                CFLAGS=-O3 -fomit-frame-pointer -mcpu=cortex-a8 -mfloat-abi=hard -mfpu=neon -DGCM_CUDA_MAX_SIZE="(32*1024*1024)"
-		CFLAGS+=-DDISABLE_CUDA
-        endif
-        ifeq ($(HOSTNAME),parallella)
-                NVCCFLAGS=-g -O3 -gencode $(GENCODE) -Xcompiler -mcpu=cortex-a9 -Xcompiler -O3 -Xcompiler -fomit-frame-pointer -Xcompiler -mfloat-abi=hard -Xcompiler -mfpu=neon -ccbin $(CXX) -DGCM_CUDA_MAX_SIZE="(32*1024*1024)"
-                CFLAGS=-O3 -fomit-frame-pointer -mcpu=cortex-a9 -mfloat-abi=hard -mfpu=neon -DGCM_CUDA_MAX_SIZE="(32*1024*1024)"
-                CFLAGS+=-DDISABLE_CUDA
-        endif
-endif
+GENCODE=arch=compute_20,code=sm_21
+CFLAGS=-march=native -mtune=native -O3 -fomit-frame-pointer 
+NVCCFLAGS=-g -O3 -std=c++11 -gencode $(GENCODE) -Xcompiler "$(CFLAGS)" -ccbin $(CXX)
 
-ifeq ($(ARCH),aarch64)
-	CUDA_INSTALL_PATH=
-	GENCODE=
-	NVCCFLAGS=-g -O3 -gencode $(GENCODE) -Xcompiler -mcpu=cortex-a57 -Xcompiler -O3 -Xcompiler -fomit-frame-pointer -ccbin $(CXX)
-	CFLAGS=-O3 -fomit-frame-pointer -mcpu=cortex-a57
-	CFLAGS+=-DDISABLE_CUDA
-endif
-ifeq ($(ARCH),x86_64)
-	CUDA_INSTALL_PATH=/home/dolbeau/cuda-6.5
-	GENCODE=arch=compute_20,code=sm_21
-	ifeq ($(HOSTNAME),robin118)
-		CUDA_INSTALL_PATH=/opt/cuda/6.5
-		GENCODE=arch=compute_35,code=sm_35
-#		CC=icc
-#		CXX=icpc
-	endif
-	NVCCFLAGS=-g -O3 -std=c++11 -gencode $(GENCODE) -Xcompiler -march=native -Xcompiler -mtune=native -Xcompiler -O3 -Xcompiler -fomit-frame-pointer -ccbin $(CXX)
-	CFLAGS=-march=native -mtune=native -O3 -fomit-frame-pointer 
-	ifeq ($(HOSTNAME),skirfir)
-		CFLAGS+=-DDISABLE_CUDA
-	endif
-	ifeq ($(HOSTNAME),h87m-d3h)
-		CFLAGS+=-DDISABLE_CUDA
-	endif
-	ifeq ($(HOSTNAME),robin118)
-		CFLAGS+=-I/home_nfs/bdolbeaur/robin118/include -L/home_nfs/bdolbeaur/robin118/lib -Wl,-rpath,/home_nfs/bdolbeaur/robin118/lib
-		NVCCFLAGS+=-I/home_nfs/bdolbeaur/robin118/include -L/home_nfs/bdolbeaur/robin118/lib
-	endif
-endif
-
-NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
-CC=gcc
-MPICC=mpicc
 
 all: aes_test aes_test_nocopy aes_hv_nochunk aes_hv_nochunknoxor aes_hv_chunk aes_hv_chunknoxor test_gcm_4 test_gcm_128
 
-aes_gpu_impl.h aes_cuda_ecb.h aes_cuda_ctr.h: generate_combinations.sh aes_gpu.h
+GENERATED_HEADERS:=aes_gpu_impl.h aes_cuda_ecb.h aes_cuda_ctr.h
+# pattern rule trick
+aes_gpu_impl%h aes_cuda_ecb%h aes_cuda_ctr%h: generate_combinations.sh aes_gpu.h
 	./$<
 
 %.o:%.cu
@@ -138,5 +91,5 @@ aes_tp_cryptopp: gpu_aes_gcm_throughput_cryptopp.o gpu_aes_gcm_nochunk.o $(OBJS)
 	$(NVCC) $(NVCCFLAGS) $^ -o $@ -lcrypto++ -lssl -lcrypto -lmpi
 
 clean:
-	rm -f aes_test aes_test_nocopy aes_hv_nochunk aes_hv_nochunknoxor aes_hv_chunk aes_hv_chunknoxor *.o aes_gcm_gpu.aux aes_gcm_gpu.bbl aes_gcm_gpu.blg aes_gcm_gpu.log aes_gcm_gpu.out aes_gcm_gpu.pdf test_gcm_4 test_gcm_128 test_gcm_fpga
+	rm -f $(GENERATED_HEADERS) aes_test aes_test_nocopy aes_hv_nochunk aes_hv_nochunknoxor aes_hv_chunk aes_hv_chunknoxor *.o aes_gcm_gpu.aux aes_gcm_gpu.bbl aes_gcm_gpu.blg aes_gcm_gpu.log aes_gcm_gpu.out aes_gcm_gpu.pdf test_gcm_4 test_gcm_128 test_gcm_fpga
 

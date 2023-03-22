@@ -32,16 +32,9 @@ See the indicated reference for the relevant license.
 */
 
 #include <iostream>
-#include <cstdio>
-#include <cstdlib>
-#if __cplusplus >= 201103L
-#include <cstdint>
-#else
-#define uint64_t unsigned long long
-#define uint32_t unsigned int
-#define uint16_t unsigned short
-#define uint8_t unsigned char
-#endif
+#include <stdio.h>
+#include <stdlib.h>
+#include <inttypes.h>
 
 #include <cryptopp/aes.h>
 #include <cryptopp/modes.h>

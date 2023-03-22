@@ -45,8 +45,8 @@ See the indicated reference for the relevant license.
 #define ALIGN16  __attribute__((aligned(16)))
 #define ALIGN32  __attribute__((aligned(32)))
 #define ALIGN64  __attribute__((aligned(64)))
-#define _bswap64(a) __builtin_bswap64(a)
-#define _bswap(a) __builtin_bswap32(a)
+//#define _bswap64(a) __builtin_bswap64(a)
+//#define _bswap(a) __builtin_bswap32(a)
 #endif
 
 #ifndef RSb__1

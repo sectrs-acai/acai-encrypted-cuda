@@ -32,16 +32,10 @@ See the indicated reference for the relevant license.
 */
 
 #include <iostream>
-#include <cstdio>
-#include <cstdlib>
-#if __cplusplus >= 201103L
-#include <cstdint>
-#else
-#define uint64_t unsigned long long
-#define uint32_t unsigned int
-#define uint16_t unsigned short
-#define uint8_t unsigned char
-#endif
+#include <stdio.h>
+#include <stdlib.h>
+#include <inttypes.h>
+
 
 extern "C" {
 unsigned int sleep(unsigned int seconds);
@@ -200,7 +194,7 @@ static inline void test_cuda_gcm(const uint8_t *in, uint8_t *out3, const uint8_t
   count = 0;
   for (i = 0 ; i < SIZE+16 && count<10 ; i++) {
     if (out2[i] != out3[i]) {
-      fprintf(stderr, "out2[%lld] != out3[%lld] : %02x != %02x\n", i, i, out2[i], out3[i]);
+      fprintf(stderr, "out2[%" PRIu64 "] != out3[%" PRIu64 "] : %02x != %02x\n", i, i, out2[i], out3[i]);
       count++;
     }
   }
@@ -338,7 +332,7 @@ void test_cuda_cpy(const uint8_t *in, uint8_t *out3, const uint8_t* out2, const 
     count = 0;
     for (i = 0 ; i < SIZE && count<10 ; i++) {
       if (out2[i] != out3[i]) {
-        fprintf(stderr, "out2[%lld] != out3[%lld] : %02x != %02x\n", i, i, out2[i], out3[i]);
+        fprintf(stderr, "out2[%" PRIu64 "] != out3[%" PRIu64 "] : %02x != %02x\n", i, i, out2[i], out3[i]);
         count++;
       }
     }
@@ -421,7 +415,7 @@ void test_cuda_nocpy(const uint8_t *in, uint8_t *out3, const uint8_t* out2, cons
     count = 0;
     for (i = 0 ; i < SIZE && count<10 ; i++) {
       if (out2[i] != out3[i]) {
-        fprintf(stderr, "out2[%lld] != out3[%lld] : %02x != %02x\n", i, i, out2[i], out3[i]);
+        fprintf(stderr, "out2[%" PRIu64 "] != out3[%" PRIu64 "] : %02x != %02x\n", i, i, out2[i], out3[i]);
         count++;
       }
     }
@@ -571,7 +565,7 @@ int main(int argc, char **argv) {
   count=0;
   for (i = 0 ; i < SIZE && count<10 ; i++) {
     if (in[i] != (i&0xFF)) {
-      fprintf(stderr, "in[%lld] = 0x%02x != 0x%02x\n", i, in[i], i&0xFF);
+      fprintf(stderr, "in[%" PRIu64 "] = 0x%02x != 0x%02x\n", i, in[i], i&0xFF);
       count++;
     }
   }
@@ -594,7 +588,7 @@ int main(int argc, char **argv) {
   count = 0;
   for (i = 0 ; i < SIZE && count<10 ; i++) {
     if (out1[i] != out2[i]) {
-      fprintf(stderr, "out1[%lld] != out2[%lld] : %02x != %02x\n", i, i, out1[i], out2[i]);
+      fprintf(stderr, "out1[%" PRIu64 "] != out2[%" PRIu64 "] : %02x != %02x\n", i, i, out1[i], out2[i]);
       count++;
     }
   }
@@ -676,7 +670,7 @@ int main(int argc, char **argv) {
     count = 0;
     for (i = 0 ; i < SIZE+16 && count<10 ; i++) {
       if (out2[i] != out3[i]) {
-        fprintf(stderr, "out2[%lld] != out3[%lld] : %02x != %02x\n", i, i, out2[i], out3[i]);
+        fprintf(stderr, "out2[%" PRIu64 "] != out3[%" PRIu64 "] : %02x != %02x\n", i, i, out2[i], out3[i]);
         count++;
       }
     }
