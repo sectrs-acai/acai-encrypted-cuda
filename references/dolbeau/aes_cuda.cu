@@ -32,14 +32,12 @@ See the indicated reference for the relevant license.
 */
 
 #include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <inttypes.h>
 
+#include <cstdio>
+#include <cstdlib>
+#include <cinttypes>
+#include <unistd.h>
 
-extern "C" {
-unsigned int sleep(unsigned int seconds);
-}
 #include <cryptopp/aes.h>
 #include <cryptopp/modes.h>
 #include <cryptopp/gcm.h>
@@ -50,7 +48,12 @@ unsigned int sleep(unsigned int seconds);
 
 #define SIZE ((1024*1024*128))
 
-#include "aes_common.h"
+// expose the functions with C linkage
+extern "C" {
+  #include "aes_gpu.h"
+}
+
+
 static inline void print16c(const uint8_t* buf) {
   uint64_t i;
   for(i = 0 ; i < 16 ; i++) {
@@ -73,10 +76,13 @@ static inline void print16c(const uint8_t* buf) {
 
 texture<unsigned short, 1, cudaReadModeElementType> tFSbSq;
 
-#include "aes_scalar.h"
-#include "aes_gcm.h"
-#define GPU_CREATE_ALL
-#include "aes_gpu.h"
+
+
+extern "C" {
+  #include "aes_scalar.h"
+  #include "aes_gcm.h"
+  #include "aes_gpu.h"
+}
 
 
 static inline void test_cuda_gcm(const uint8_t *in, uint8_t *out3, const uint8_t* out2, const uint32_t *aes_edrk,
@@ -436,11 +442,14 @@ sleep(1);
 
 #ifdef NOCOPY
 #define test_cuda test_cuda_nocpy
-uint32_t* FT0;
-uint32_t* FT1;
-uint32_t* FT2;
-uint32_t* FT3;
-uint32_t* FSb;
+extern "C" {
+  // tables exposed for the C functions in aes_scalar.h
+  uint32_t* FT0;
+  uint32_t* FT1;
+  uint32_t* FT2;
+  uint32_t* FT3;
+  uint32_t* FSb;
+}
 #else
 #define test_cuda test_cuda_cpy
 #endif
@@ -650,20 +659,20 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Oups, Crypto++ AES-GCM failed");
   }
   { 
-    EVP_CIPHER_CTX x;
+    EVP_CIPHER_CTX * x = EVP_CIPHER_CTX_new();
     int outlen = 0;
     int ok = 1;
     
     t0 = wallclock();
-    EVP_CIPHER_CTX_init(&x);
-    if (ok == 1) ok = EVP_EncryptInit_ex(&x,EVP_aes_256_gcm(),0,0,0);
-    if (ok == 1) ok = EVP_CIPHER_CTX_ctrl(&x,EVP_CTRL_GCM_SET_IVLEN,12,0);
-    if (ok == 1) ok = EVP_EncryptInit_ex(&x,0,0,(const unsigned char *)key,(const unsigned char *)IV);
-//     if (ok == 1) ok = EVP_EncryptUpdate(&x,0,&outlen,ad,adlen);
-    if (ok == 1) ok = EVP_EncryptUpdate(&x,out3,&outlen,in,SIZE);
-    if (ok == 1) ok = EVP_EncryptFinal_ex(&x,out3,&outlen);
-    if (ok == 1) ok = EVP_CIPHER_CTX_ctrl(&x,EVP_CTRL_GCM_GET_TAG,16,out3 + SIZE);
-    EVP_CIPHER_CTX_cleanup(&x);
+    EVP_CIPHER_CTX_init(x);
+    if (ok == 1) ok = EVP_EncryptInit_ex(x,EVP_aes_256_gcm(),0,0,0);
+    if (ok == 1) ok = EVP_CIPHER_CTX_ctrl(x,EVP_CTRL_GCM_SET_IVLEN,12,0);
+    if (ok == 1) ok = EVP_EncryptInit_ex(x,0,0,(const unsigned char *)key,(const unsigned char *)IV);
+//     if (ok == 1) ok = EVP_EncryptUpdate(x,0,&outlen,ad,adlen);
+    if (ok == 1) ok = EVP_EncryptUpdate(x,out3,&outlen,in,SIZE);
+    if (ok == 1) ok = EVP_EncryptFinal_ex(x,out3,&outlen);
+    if (ok == 1) ok = EVP_CIPHER_CTX_ctrl(x,EVP_CTRL_GCM_GET_TAG,16,out3 + SIZE);
+    EVP_CIPHER_CTX_cleanup(x);
     t1 = wallclock();
     if (ok != 1)
       fprintf(stderr, "Oups, openssl AES-GCM failed");

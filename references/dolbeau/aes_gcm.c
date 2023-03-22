@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 For the work by others:
 See the indicated reference for the relevant license.
 */
+#include "aes_gcm.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -38,8 +39,8 @@ See the indicated reference for the relevant license.
 #include <unistd.h>
 #include <sys/mman.h>
 #include <fcntl.h>
+
 #include "aes_common.h"
-#include "aes_gcm.h"
 
 
 typedef void (*addmul_proto)(unsigned char *, const unsigned char *, const unsigned long long, const unsigned char *);

@@ -3,10 +3,6 @@
 
 #include "aes_common.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
   /* openssl */
 int crypto_aead_encrypt_openssl(
   unsigned char *c,unsigned long long *clen,
@@ -66,8 +62,5 @@ int crypto_aead_decrypt_cuda(
 void init_crypto_aead_cuda(const size_t SIZE, const int maxb);
 void finish_crypto_aead_cuda(void);
 
-#ifdef __cplusplus
-}
-#endif
 
 #endif

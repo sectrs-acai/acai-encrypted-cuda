@@ -1,9 +1,6 @@
 #ifndef _AES_GCM_
 #define _AES_GCM_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 void addmul_ref(unsigned char *a,
                 const unsigned char *x,
@@ -54,7 +51,4 @@ void do_xor_gcm(unsigned char *accum, const unsigned char *H,
 void do_gcm_xor(unsigned char *accum, const unsigned char *H,
                 unsigned char *v, const unsigned char *in, unsigned int vlen);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

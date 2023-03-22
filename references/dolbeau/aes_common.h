@@ -3,15 +3,10 @@
 
 #include <sys/time.h>
 #include <time.h>
-#ifdef __cplusplus
-#include <cstdio>
-#else
-#include <stdio.h>
-#endif
+#include <inttypes.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <stdio.h>
+
 typedef void (*aes_encrypt_cuda_proto)(const uint32_t *,
                                        uint32_t *,
                                        const uint32_t *,
@@ -38,8 +33,5 @@ static inline double wallclock(void) {
   
   return t;
 }
-#ifdef __cplusplus
-}
-#endif
 
 #endif

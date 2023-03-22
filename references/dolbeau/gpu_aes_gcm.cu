@@ -31,9 +31,17 @@ For the work by others:
 See the indicated reference for the relevant license.
 */
 
+
+// expose the functions with C linkage
+extern "C" {
+  #include "gpu_aes_gcm.h"
+}
+
 #include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
+
+#include <cassert>
+#include <cstdio>
+#include <cstdlib>
 #include <inttypes.h>
 
 #include <cryptopp/aes.h>
@@ -44,14 +52,17 @@ See the indicated reference for the relevant license.
 
 #include <openssl/evp.h>
 
-#include "aes_common.h"
-#include "aes_scalar.h"
-#include "aes_gcm.h"
+extern "C" {
+  #include "aes_common.h"
+  #include "aes_scalar.h"
+  #include "aes_gcm.h"
+}
 
 texture<unsigned short, 1, cudaReadModeElementType> tFSbSq;
 
-#include "aes_gpu.h"
-#include "gpu_aes_gcm.h"
+extern "C" {
+  #include "aes_gpu.h"
+}
 
 /* AES256GCM encryption.
    this is from the supercop benchmark <http://bench.cr.yp.to/supercop.html>
@@ -66,7 +77,7 @@ int crypto_aead_encrypt_openssl(
   const unsigned char *k
 )
 {
-  EVP_CIPHER_CTX x;
+  EVP_CIPHER_CTX * x = EVP_CIPHER_CTX_new();
   int outlen = 0;
   int ok = 1;
 
@@ -74,15 +85,15 @@ int crypto_aead_encrypt_openssl(
   /* OpenSSL needs to put lengths into an int */
   if (mlen > 536870912) return -111;
 
-  EVP_CIPHER_CTX_init(&x);
-  if (ok == 1) ok = EVP_EncryptInit_ex(&x,EVP_aes_256_gcm(),0,0,0);
-  if (ok == 1) ok = EVP_CIPHER_CTX_ctrl(&x,EVP_CTRL_GCM_SET_IVLEN,12,0);
-  if (ok == 1) ok = EVP_EncryptInit_ex(&x,0,0,k,npub);
-  if (ok == 1) ok = EVP_EncryptUpdate(&x,0,&outlen,ad,adlen);
-  if (ok == 1) ok = EVP_EncryptUpdate(&x,c,&outlen,m,mlen);
-  if (ok == 1) ok = EVP_EncryptFinal_ex(&x,c,&outlen);
-  if (ok == 1) ok = EVP_CIPHER_CTX_ctrl(&x,EVP_CTRL_GCM_GET_TAG,16,c + mlen);
-  EVP_CIPHER_CTX_cleanup(&x);
+  EVP_CIPHER_CTX_init(x);
+  if (ok == 1) ok = EVP_EncryptInit_ex(x,EVP_aes_256_gcm(),0,0,0);
+  if (ok == 1) ok = EVP_CIPHER_CTX_ctrl(x,EVP_CTRL_GCM_SET_IVLEN,12,0);
+  if (ok == 1) ok = EVP_EncryptInit_ex(x,0,0,k,npub);
+  if (ok == 1) ok = EVP_EncryptUpdate(x,0,&outlen,ad,adlen);
+  if (ok == 1) ok = EVP_EncryptUpdate(x,c,&outlen,m,mlen);
+  if (ok == 1) ok = EVP_EncryptFinal_ex(x,c,&outlen);
+  if (ok == 1) ok = EVP_CIPHER_CTX_ctrl(x,EVP_CTRL_GCM_GET_TAG,16,c + mlen);
+  EVP_CIPHER_CTX_cleanup(x);
 
   if (ok == 1) {
     *clen = mlen + 16;
@@ -104,7 +115,7 @@ int crypto_aead_decrypt_openssl(
   const unsigned char *k
 )
 {
-  EVP_CIPHER_CTX x;
+  EVP_CIPHER_CTX * x = EVP_CIPHER_CTX_new();
   int outlen = 0;
   int ok = 1;
   
@@ -115,15 +126,15 @@ int crypto_aead_decrypt_openssl(
   if (clen < 16) return -1;
   clen -= 16;
 
-  EVP_CIPHER_CTX_init(&x);
-  if (ok == 1) ok = EVP_DecryptInit_ex(&x,EVP_aes_256_gcm(),0,0,0);
-  if (ok == 1) ok = EVP_CIPHER_CTX_ctrl(&x,EVP_CTRL_GCM_SET_IVLEN,12,0);
-  if (ok == 1) ok = EVP_CIPHER_CTX_ctrl(&x,EVP_CTRL_GCM_SET_TAG,16,(unsigned char *) c + clen);
-  if (ok == 1) ok = EVP_DecryptInit_ex(&x,0,0,k,npub);
-  if (ok == 1) ok = EVP_DecryptUpdate(&x,0,&outlen,ad,adlen);
-  if (ok == 1) ok = EVP_DecryptUpdate(&x,m,&outlen,c,clen);
-  if (ok == 1) ok = EVP_DecryptFinal_ex(&x,m + clen,&outlen);
-  EVP_CIPHER_CTX_cleanup(&x);
+  EVP_CIPHER_CTX_init(x);
+  if (ok == 1) ok = EVP_DecryptInit_ex(x,EVP_aes_256_gcm(),0,0,0);
+  if (ok == 1) ok = EVP_CIPHER_CTX_ctrl(x,EVP_CTRL_GCM_SET_IVLEN,12,0);
+  if (ok == 1) ok = EVP_CIPHER_CTX_ctrl(x,EVP_CTRL_GCM_SET_TAG,16,(unsigned char *) c + clen);
+  if (ok == 1) ok = EVP_DecryptInit_ex(x,0,0,k,npub);
+  if (ok == 1) ok = EVP_DecryptUpdate(x,0,&outlen,ad,adlen);
+  if (ok == 1) ok = EVP_DecryptUpdate(x,m,&outlen,c,clen);
+  if (ok == 1) ok = EVP_DecryptFinal_ex(x,m + clen,&outlen);
+  EVP_CIPHER_CTX_cleanup(x);
 
   if (ok == 1) {
     *mlen = clen;
