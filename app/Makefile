@@ -16,7 +16,8 @@ NVCCFLAGS += -arch sm_21 -cubin -Xcompiler "$(CXXFLAGS)"
 
 LDFLAGS+=-L$(LIBDIR) -L/usr/local/gdev/lib64
 LDLIBS+=-lenccuda -lucuda -lgdev
-
+# make sure that libenccuda is loaded BEFORE libucuda and ibgdev,
+# as it will look for symbols is the dynamic libraries that follow it
 
 CUBINS := src/kernel.cubin
 OBJFILES := src/main.o
