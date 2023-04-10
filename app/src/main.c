@@ -8,7 +8,6 @@
 
 #define GPU_BLOCK_SIZE (uint64_t)(256 * 16)
 
-#define DEBUG_PRINTF(fmt...) fprintf(stderr, fmt)
 #define CUDA_PRINT_ERROR(e) \
 	cuda_print_error(__FILE__, __LINE__, e)
 
@@ -25,7 +24,6 @@ int main(int argc, char ** argv)
 {
     CUresult ret;
 
-	DEBUG_PRINTF("cuInit\n");
 	ret = cuInit(0);
 	if (ret != CUDA_SUCCESS) {
 		fprintf(stderr, "cuInit failed\n");
@@ -55,6 +53,7 @@ int main(int argc, char ** argv)
 	// memory for a[]
     size_t n = 2 * GPU_BLOCK_SIZE;
     unsigned char * a = malloc (n);
+	unsigned char * a_res = malloc(n);
 
 	CUdeviceptr a_dev;
 	ret = cuMemAlloc(&a_dev, n);
@@ -74,11 +73,6 @@ int main(int argc, char ** argv)
 		fprintf(stderr, "cuMemcpyHtoD a failed\n");
 		goto cuda_err;
 	}
-
-	// copy back to host
-	// XXX do it with enc_ function !
-
-	unsigned char * a_res = malloc(n);
 	
 	ret = cuMemcpyDtoH(a_res, a_dev, n);
 	if (ret != CUDA_SUCCESS) {
@@ -95,44 +89,24 @@ int main(int argc, char ** argv)
 	}
 	printf("\n");
 
-#ifdef CLEANUP
 
     // Free CUDA buffers
-	res = cuMemFree(a_dev);
-	if (res != CUDA_SUCCESS) {
-		printf("cuMemFree (a) failed: res = %lu\n", (unsigned long)res);
-		return -1;
-	}
-	res = cuMemFree(b_dev);
-	if (res != CUDA_SUCCESS) {
-		printf("cuMemFree (b) failed: res = %lu\n", (unsigned long)res);
-		return -1;
-	}
-	res = cuMemFree(c_dev);
-	if (res != CUDA_SUCCESS) {
-		printf("cuMemFree (c) failed: res = %lu\n", (unsigned long)res);
-		return -1;
-	}
-
-    // unload module
-	res = cuModuleUnload(module);
-	if (res != CUDA_SUCCESS) {
-		printf("cuModuleUnload failed: res = %lu\n", (unsigned long)res);
-		return -1;
+	ret = cuMemFree(a_dev);
+	if (ret != CUDA_SUCCESS) {
+		fprintf(stderr, "cuMemFree failed\n");
+		goto cuda_err;
 	}
 
     // destroy contet
-	res = cuCtxDestroy(ctx);
-	if (res != CUDA_SUCCESS) {
-		printf("cuCtxDestroy failed: res = %lu\n", (unsigned long)res);
-		return -1;
+	ret = cuCtxDestroy(ctx);
+	if (ret != CUDA_SUCCESS) {
+		fprintf(stderr, "cuCtxDestroy failed\n");
+		goto cuda_err;
 	}
 
     // free host buffers
+	free(a_res);
 	free(a);
-	free(b);
-	free(c);
-#endif
 
 	goto cleanup;
 
