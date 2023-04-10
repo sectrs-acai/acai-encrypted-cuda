@@ -58,5 +58,6 @@ The AES routines used are:
 
 # Limitations
 
+- The counter value is NOT incremented between encryptions!!!
 - This is not AES-GCM!
 - I intended to test a second implementation (in the repo at `enc_cuda/references/burcel`), but currently only tested the AES ciphers from R. Dolbeau. The second implementation is the result of a master thesis.
