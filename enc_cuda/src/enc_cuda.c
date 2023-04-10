@@ -251,8 +251,9 @@ CUresult cuMemAlloc(CUdeviceptr *dptr, unsigned int bytesize)
     if ((ret = cu_memalloc(&data->dbb, bb_bytesize)) != CUDA_SUCCESS)
         goto cuda_err;
 
-    // allocate normal device buffer
-    if ((ret = cu_memalloc(&data->dptr, bytesize)) != CUDA_SUCCESS)
+    // allocate normal device buffer. Also bb_bytesize because
+    // encryption will read past the end of data!
+    if ((ret = cu_memalloc(&data->dptr, bb_bytesize)) != CUDA_SUCCESS)
         goto cuda_err;
 
     *dptr = (CUdeviceptr)data;
@@ -304,58 +305,9 @@ cleanup:
 }
 
 
-__attribute__((visibility("default")))
-CUresult cuMemcpyHtoD(CUdeviceptr dstDevice, const void *srcHost, unsigned int ByteCount)
+// /!\ here dst and src are REAL CUdeviceptr, and not pointers to the wrapper
+static CUresult aes_265_ctr_gpu(CUdeviceptr dst, CUdeviceptr src, unsigned int bb_buflen)
 {
-    assert(cu_memcpy_hd != NULL);
-
-    CUresult ret;
-
-    struct device_buf_with_bb *data = (struct device_buf_with_bb *)dstDevice;
-
-    DEBUG_PRINTF("enc_cuMemcpyHtoD\n");
-
-
-    // XXX: here we encrypt just the buffer, but decrypt
-    //  buffer + padding on the device, then truncate. This works
-    //  because there is no authentication, but won't with GCM!
-    //  We need to also encrypt the padding that will be decrypted.
-    //  Possible using the openssl interface directly (update twice)
-
-    unsigned int bb_buflen = ROUND_UP(ByteCount, GPU_BLOCK_SIZE);
-
-    DEBUG_PRINTF("encrypt source to host bounce buffer\n");
-
-
-    printf("in=%d %d %d\n", ((unsigned char*)srcHost)[0], ((unsigned char*)srcHost)[1], ((unsigned char*)srcHost)[2]);
-
-    // encrypt source to host bounce buffer
-    int clen;
-    if (aes256_ctr_encrypt_openssl(
-            data->hbb, &clen,   // c
-            srcHost, ByteCount, // m
-            h_IV, h_key) != EXIT_SUCCESS)
-    {
-        ret = CUDA_ERROR_UNKNOWN;
-        goto cleanup;
-    }
-
-    printf("enc=%d %d %d\n", ((unsigned char*)data->hbb)[0], ((unsigned char*)data->hbb)[1], ((unsigned char*)data->hbb)[2]);
-
-
-    // we can't have a ciphertext longer than our bounce buffer!
-    assert(clen <= bb_buflen);
-
-    // copy encrypted payload to device
-    DEBUG_PRINTF("copy encrypted payload to device\n");
-
-    ret = cu_memcpy_hd(data->dbb, data->hbb, bb_buflen);
-    if (ret != CUDA_SUCCESS)
-        goto cuda_err;
-
-    // decrypt on device to destination
-    DEBUG_PRINTF("decrypt on device to destination\n");
-
     // How many GPU blocks = batch of AES blocks?
     assert((bb_buflen & GPU_BLOCK_MASK) == 0);
     int nfullgpuaesblock = bb_buflen / GPU_BLOCK_SIZE;
@@ -385,7 +337,7 @@ CUresult cuMemcpyHtoD(CUdeviceptr dstDevice, const void *srcHost, unsigned int B
     int nfullaesblock = 256 * nfullgpuaesblock;
 
     void *kernel_args[] = {
-        &data->dbb, &data->dptr, // in, out
+        &src, &dst, // in, out
         &d_aes_erdk,             // diagonalized subkeys
         &nfullaesblock,
         &dFT0, &dFT1, &dFT2, &dFT3, &dFSb, &d_IV};
@@ -393,12 +345,7 @@ CUresult cuMemcpyHtoD(CUdeviceptr dstDevice, const void *srcHost, unsigned int B
     // dynamic memory. XXX: random value here! would 0 work ?
     size_t sharedMemBytes = 64;
 
-    // wait for all memory to be on device
-    cuCtxSynchronize();
-
-#define REAL_DECRYPT 1
-#ifdef REAL_DECRYPT
-    ret = cuLaunchKernel(
+    return cuLaunchKernel(
         aes_ctr_dolbeau,
         gx, gy, gz,
         bx, by, bz,
@@ -406,14 +353,65 @@ CUresult cuMemcpyHtoD(CUdeviceptr dstDevice, const void *srcHost, unsigned int B
         0, // default stream
         kernel_args,
         NULL);
-#else
-    ret = cuMemcpyDtoD(data->dptr, data->dbb, bb_buflen);
-#endif
+}
 
+
+__attribute__((visibility("default")))
+CUresult cuMemcpyHtoD(CUdeviceptr dstDevice, const void *srcHost, unsigned int ByteCount)
+{
+    assert(cu_memcpy_hd != NULL);
+
+    CUresult ret;
+
+    struct device_buf_with_bb *data = (struct device_buf_with_bb *)dstDevice;
+
+    DEBUG_PRINTF("enc_cuMemcpyHtoD\n");
+
+
+    // XXX: here we encrypt just the buffer, but decrypt
+    //  buffer + padding on the device, then truncate. This works
+    //  because there is no authentication, but won't with GCM!
+    //  We need to also encrypt the padding that will be decrypted.
+    //  Possible using the openssl interface directly (update twice)
+
+    unsigned int bb_buflen = ROUND_UP(ByteCount, GPU_BLOCK_SIZE);
+
+    DEBUG_PRINTF("encrypt host bounce buffer\n");
+
+
+
+    // encrypt source to host bounce buffer
+    int clen;
+    if (aes256_ctr_encrypt_openssl(
+            data->hbb, &clen,   // c
+            srcHost, ByteCount, // m
+            h_IV, h_key) != EXIT_SUCCESS)
+    {
+        ret = CUDA_ERROR_UNKNOWN;
+        goto cleanup;
+    }
+
+
+
+    // we can't have a ciphertext longer than our bounce buffer!
+    assert(clen <= bb_buflen);
+
+    // copy encrypted payload to device
+    DEBUG_PRINTF("copy bounce buffer on device\n");
+
+    ret = cu_memcpy_hd(data->dbb, data->hbb, bb_buflen);
     if (ret != CUDA_SUCCESS)
         goto cuda_err;
 
+    // decrypt on device to destination
+    DEBUG_PRINTF("decrypt on device from bounce buffer to destination\n");
 
+    // wait for all memory to be on device
+    cuCtxSynchronize();
+
+    ret = aes_265_ctr_gpu(data->dptr, data->dbb, bb_buflen);
+    if (ret != CUDA_SUCCESS)
+        goto cuda_err;
 
     ret = CUDA_SUCCESS;
     goto cleanup;
@@ -432,13 +430,39 @@ CUresult cuMemcpyDtoH(void *dstHost, CUdeviceptr srcDevice, unsigned int ByteCou
 
     assert(cu_memcpy_dh != NULL);
 
-    // TODO: add encryption!
     struct device_buf_with_bb *data = (struct device_buf_with_bb *)srcDevice;
 
-    if((ret = cu_memcpy_dh(dstHost, data->dptr, ByteCount)) != CUDA_SUCCESS)
+    DEBUG_PRINTF("enc_cuMemcpyDtoH\n");
+
+    unsigned int bb_buflen = ROUND_UP(ByteCount, GPU_BLOCK_SIZE);
+
+    // encrypt on device
+    DEBUG_PRINTF("encrypt on device to bounce buffer\n");
+
+    ret = aes_265_ctr_gpu(data->dbb, data->dptr, bb_buflen);
+    if (ret != CUDA_SUCCESS)
         goto cuda_err;
 
-    printf("dec=%d %d %d\n", ((unsigned char*)dstHost)[0], ((unsigned char*)dstHost)[1], ((unsigned char*)dstHost)[2]);
+    DEBUG_PRINTF("copy to host\n");
+
+    // copy from device to host bounce buffer
+    if((ret = cu_memcpy_dh(data->hbb, data->dbb, bb_buflen)) != CUDA_SUCCESS)
+        goto cuda_err;
+
+    DEBUG_PRINTF("decrypt on host from bounce buffer to destination\n");
+
+    // decrypt on host from bounce buffer
+    int mlen;
+    if(aes256_ctr_decrypt_openssl(
+        dstHost, &mlen,
+        data->hbb, bb_buflen,
+        h_IV, h_key 
+    ) != EXIT_SUCCESS)
+    {
+        ret = CUDA_ERROR_UNKNOWN;
+        goto cleanup;
+    }
+
 
 
     ret = CUDA_SUCCESS;
