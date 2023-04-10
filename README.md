@@ -40,6 +40,23 @@ CUresult cuda_enc_setup(char * key, char * iv);
 
 See `enc_cuda/enc_cuda.h` for a description of the function.
 
+
+The AES routines used are:
+
+- On the host, the OpenSSL AES-CTR functions (libcrypto).
+- On the GPU, the AES-CTR functions [implemented by Romain Dolbeau](http://dolbeau.name/dolbeau/crypto/crypto.html) for a [WIP paper](http://www.dolbeau.name/dolbeau/publications/aes_gcm_gpu.pdf). Even though it is a WIP paper, it appears to be the most complete open source implementation of an AES cipher available online.
+    + At the time of writing, his webpage seems to be down, but is still available on <archive.org>:
+        * [project presentation and code](https://web.archive.org/web/20221127200344/http://dolbeau.name/dolbeau/crypto/crypto.html)
+        * [the WIP paper](https://web.archive.org/web/20210813051708/http://www.dolbeau.name/dolbeau/publications/aes_gcm_gpu.pdf)
+    + More specifically, I only tried using the function that is reported as most high-performing in the paper (`aes_ctr_cuda_BTB32SRDIAGKEY0_PRMT_8nocoalnocoal`).
+
 ## Test app
 
 `app` contains an example that simply copies memory to the device, and back to the host.
+
+
+
+# Limitations
+
+- This is not AES-GCM!
+- I intended to test a second implementation (in the repo at `enc_cuda/references/burcel`), but currently only tested the AES ciphers from R. Dolbeau. The second implementation is the result of a master thesis.
