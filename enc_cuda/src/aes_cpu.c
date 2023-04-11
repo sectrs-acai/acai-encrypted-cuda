@@ -18,11 +18,11 @@ int aes256_ctr_encrypt_openssl(
 	DEBUG_PRINTF("aes256_ctr_encrypt_openssl\n");
 
 	EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-	EVP_CIPHER *cipher = EVP_CIPHER_fetch(NULL, "AES-256-CTR", NULL);
+	EVP_CIPHER const *cipher = EVP_aes_256_ctr();
     if (ctx == NULL || cipher == NULL)
         goto openssl_err;
 
-	if(EVP_EncryptInit_ex2(ctx, cipher, k, npub, NULL) != 1)
+	if(EVP_EncryptInit_ex(ctx, cipher, NULL, k, npub) != 1)
 		goto openssl_err;
 	
 	// get/set params if necessary, eg IVLEN 
@@ -44,7 +44,6 @@ int aes256_ctr_encrypt_openssl(
 openssl_err:
 	ERR_print_errors_fp(stderr);
 cleanup:
-    EVP_CIPHER_free(cipher);
     EVP_CIPHER_CTX_free(ctx);
     return ret;
 }
@@ -63,11 +62,11 @@ int aes256_ctr_decrypt_openssl(
 
 
 	EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-	EVP_CIPHER *cipher = EVP_CIPHER_fetch(NULL, "AES-256-CTR", NULL);
+	EVP_CIPHER const *cipher = EVP_aes_256_ctr();
     if (ctx == NULL || cipher == NULL)
         goto openssl_err;
 
-	if(EVP_DecryptInit_ex2(ctx, cipher, k, npub, NULL) != 1)
+	if(EVP_DecryptInit_ex(ctx, cipher, NULL, k, npub) != 1)
 		goto openssl_err;
 
 	// get/set params if necessary, eg IVLEN and TAG
@@ -86,7 +85,6 @@ int aes256_ctr_decrypt_openssl(
 openssl_err:
 	ERR_print_errors_fp(stderr);
 cleanup:
-    EVP_CIPHER_free(cipher);
     EVP_CIPHER_CTX_free(ctx);
     return ret;
 }

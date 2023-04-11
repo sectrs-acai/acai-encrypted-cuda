@@ -24,7 +24,7 @@ CPPFLAGS+=-D_GNU_SOURCE
 # - ld.so
 CPPFLAGS+=-I$(INCLUDE_DIR) -I/usr/local/gdev/include
 LDFLAGS+=-L$(LIBDIR) -L/usr/local/gdev/lib64
-LDLIBS+=-ldl -lucuda -lgdev -l:libcrypto.so.3
+LDLIBS+=-ldl -lucuda -lgdev -lcrypto
 
 # for LTO
 LDFLAGS+=$(CFLAGS)
