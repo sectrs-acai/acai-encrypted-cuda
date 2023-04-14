@@ -3,7 +3,7 @@ TARGET = cuda_enc_app
 CC = $(CROSS_COMPILE)gcc
 NVCC = nvcc
 
-PREFIX=install
+PREFIX=../install
 BINDIR=$(PREFIX)/bin
 LIBDIR=$(PREFIX)/lib
 INCLUDE_DIR=$(PREFIX)/include
@@ -18,8 +18,11 @@ NVCCFLAGS += -arch sm_21 -cubin -Xcompiler "$(CXXFLAGS)"
 
 LDFLAGS+=-L$(LIBDIR) -L$(GDEV_PREFIX)/gdev/lib64
 LDLIBS+=-lenccuda -lucuda -lgdev
+#LDLIBS+= -lucuda -lgdev
 # make sure that libenccuda is loaded BEFORE libucuda and ibgdev,
 # as it will look for symbols is the dynamic libraries that follow it
+
+CFLAGS += -DCUDA_ENC
 
 CUBINS := src/kernel.cubin
 OBJFILES := src/main.o
@@ -47,7 +50,7 @@ install: $(TARGET)
 
 .PHONY: clean
 clean:
-	rm -f $(TARGET) $(OBJFILES) $(CUBINS) $(DOLBEAU_CONFIG)
+	rm -f $(TARGET) $(OBJFILES)
 
 .PHONY: run
 run: all

@@ -10,6 +10,7 @@
 #define GPU_BLOCK_SIZE (uint64_t)(256 * 16)
 #define GPU_BLOCK_MASK (GPU_BLOCK_SIZE - 1)
 
+#define HERE printf("[debug] %s/%s: %d\n", __FILE__, __FUNCTION__, __LINE__)
 
 #ifndef NDEBUG
 #define DEBUG_PRINTF(fmt...) fprintf(stderr, fmt)
@@ -24,3 +25,7 @@ static inline void cuda_print_error(char * file, int line, CUresult e)
 {
 	fprintf(stderr, "(%s:%d), error %d\n", file, line, e);
 }
+
+#define PRINT_ERROR(fmt, ...) \
+fprintf(stderr, "[err] %s/%s/%d: " fmt, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+

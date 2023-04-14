@@ -1,0 +1,8 @@
+#LD_LIBRARY_PATH=/usr/local/gdev/lib64 ./gaussian ../../data/gaussian/matrix1024.txt
+C=$(pwd)
+cd ../../
+./install.sh
+cd $C
+
+sudo LD_LIBRARY_PATH=/usr/local/gdev/lib64/:../../install/lib ./gaussian -s 16 -q
+

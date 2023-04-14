@@ -15,21 +15,17 @@
 #include <dlfcn.h>
 // For dirname
 #include <libgen.h>
-#include <glib.h>
 
-/*
- * TODO: Do we care about encryption of kernel parameters?
- * Not yet fully implemented, set to 1 once done
- */
-#define CU_ENCRYPT_KERNEL_PARAM 0
+
 
 // Internal type passed to the user as a CUdeviceptr pointer.
 // Wraps a CUdeviceptr, and associates it with two bounce buffers
 // (host and device sides)
 struct device_buf_with_bb {
-    CUdeviceptr dev_ptr; //< device buffer
+	CUdeviceptr dev_ptr; //< device buffer
+
     CUdeviceptr dev_bb; //< device bounce buffer
-    void *host_bb; //< host bounce buffer
+	void * host_bb; //< host bounce buffer
 };
 
 // Global device-side state used for encryption:
@@ -41,63 +37,55 @@ static CUdeviceptr d_aes_erdk, d_IV;
 static unsigned char h_key[33], h_IV[33];
 static CUdeviceptr dFT0, dFT1, dFT2, dFT3, dFSb;
 
-// key: device mem pointer
-static GHashTable *hash_alloc = NULL;
-
-#if CU_ENCRYPT_KERNEL_PARAM
-static GHashTable *hash_kernel_param = NULL;
-#endif
-
 // Recover the original CUDA function pointers
-cu_memalloc_func_t *cu_memalloc;
-cu_memfree_func_t *cu_memfree;
-cu_memcpy_d_to_h_func_t *cu_memcpy_dh;
-cu_memcpy_h_to_d_func_t *cu_memcpy_hd;
+cu_memalloc_func_t * cu_memalloc;
+cu_memfree_func_t * cu_memfree;
+cu_memcpy_d_to_h_func_t * cu_memcpy_dh;
+cu_memcpy_h_to_d_func_t * cu_memcpy_hd;
 
-static int get_lib_load_path(char *load_path, size_t load_path_buflen)
+
+static int get_lib_load_path(char * load_path, size_t load_path_buflen)
 {
+    HERE;
     Dl_info info;
-    if (dladdr(cuda_enc_setup, &info) == 0) {
+    if (dladdr(cuda_enc_setup, &info) == 0)
+    {
         DEBUG_PRINTF("dladdr failed\n");
         return EXIT_FAILURE;
     }
-
+    
     size_t len = strlen(info.dli_fname) + 1;
     char load_name[256] = {0};
-    if (len > sizeof(load_name)) {
+    if(len > sizeof(load_name)) {
         DEBUG_PRINTF("Absolute path of library is too long\n");
         return EXIT_FAILURE;
     }
     memcpy(load_name, info.dli_fname, len);
-
-    char *dname = dirname(load_name);
+    
+    
+    char * dname = dirname(load_name);
     size_t dname_len = strlen(dname) + 1;
-    if (dname_len > load_path_buflen)
-        if (len > sizeof(load_name)) {
-            DEBUG_PRINTF("Absolute path of library directory is too long\n");
-            return EXIT_FAILURE;
-        }
-
-    memcpy(load_path, dname, dname_len);
-
-    return EXIT_SUCCESS;
-}
-
-__attribute__((visibility("default")))
-CUresult cuda_enc_release()
-{
-    if (hash_alloc != NULL) {
-        g_hash_table_destroy(hash_alloc);
+    if(dname_len > load_path_buflen)
+    if(len > sizeof(load_name)) {
+        DEBUG_PRINTF("Absolute path of library directory is too long\n");
+        return EXIT_FAILURE;
     }
 
-    return CUDA_SUCCESS;
+    memcpy(load_path, dname, dname_len);
+    
+    return EXIT_SUCCESS;
 }
 
 __attribute__((visibility("default")))
 CUresult cuda_enc_setup(char *key, char *iv)
 {
+    HERE;
     CUresult ret;
+
     DEBUG_PRINTF("cuda_enc_setup\n");
+
+
+    DEBUG_PRINTF("obtain the function pointers to the CUDA functions to interpose\n");
 
     cu_memalloc = dlsym(RTLD_NEXT, "cuMemAlloc");
     assert(cu_memalloc != NULL);
@@ -111,24 +99,12 @@ CUresult cuda_enc_setup(char *key, char *iv)
     cu_memcpy_hd = dlsym(RTLD_NEXT, "cuMemcpyHtoD");
     assert(cu_memcpy_hd != NULL);
 
-    #if CU_ENCRYPT_KERNEL_PARAM
-    cu_launch_grid = dlsym(RTLD_NEXT, "cuLaunchGrid");
-    assert(cu_launch_grid != NULL);
-
-    cu_param_set_size = dlsym(RTLD_NEXT, "cuParamSetSize");
-    assert(cu_param_set_size != NULL);
-
-    hash_kernel_param = g_hash_table_new(g_direct_hash, g_direct_equal);
-    if (hash_kernel_param == NULL) {
-        ret = -1;
-        PRINT_ERROR("hash_kernel_param failed to alloc\n");
-        goto cuda_err;
-    }
-    #endif
 
     // Get shared library path:
+
     char load_path[256];
-    if (get_lib_load_path(load_path, sizeof(load_path) != EXIT_SUCCESS)) {
+    if(get_lib_load_path(load_path, sizeof(load_path) != EXIT_SUCCESS))
+    {
         DEBUG_PRINTF("Failed to get library load path\n");
         ret = CUDA_ERROR_UNKNOWN;
         goto cuda_err;
@@ -146,14 +122,14 @@ CUresult cuda_enc_setup(char *key, char *iv)
     if (ret != CUDA_SUCCESS)
         goto cuda_err;
 
-    ret = cuModuleGetFunction(&aes_ctr_dolbeau,
-                              module,
-                              "aes_ctr_cuda_BTB32SRDIAGKEY0_PRMT_8nocoalnocoal");
+    HERE;
+    ret = cuModuleGetFunction(&aes_ctr_dolbeau, module, "aes_ctr_cuda_BTB32SRDIAGKEY0_PRMT_8nocoalnocoal");
     if (ret != CUDA_SUCCESS)
         goto cuda_err;
 
-
+    HERE;
     /* Setup keys, initial counter value and precomputed tables */
+
     // ---------
     // Memory allocation
 
@@ -202,19 +178,22 @@ CUresult cuda_enc_setup(char *key, char *iv)
     // Diagonalize subkeys
     uint32_t aes_edrk[64];
     uint32_t aes_edrk_diag[64];
-    aes_set_key((const unsigned int *) key, aes_edrk);
+    aes_set_key((const unsigned int *)key, aes_edrk);
     {
         /* ** diagonalization of subkeys */
         /* first four are not diagonalized */
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 4; i++)
+        {
             aes_edrk_diag[i] = aes_edrk[i];
         }
         /* then all but last four are */
-        for (int i = 4; i < 56; i += 4) {
+        for (int i = 4; i < 56; i += 4)
+        {
             diag1cpu(aes_edrk_diag + i, aes_edrk + i);
         }
         /* last four */
-        for (int i = 56; i < 64; i++) {
+        for (int i = 56; i < 64; i++)
+        {
             aes_edrk_diag[i] = aes_edrk[i];
         }
     }
@@ -237,43 +216,32 @@ CUresult cuda_enc_setup(char *key, char *iv)
     memcpy(h_key, key, sizeof(h_key));
     memcpy(h_IV, iv, sizeof(h_IV));
 
-    DEBUG_PRINTF("inithash table\n");
-    hash_alloc = g_hash_table_new(g_direct_hash, g_direct_equal);
-    if (hash_alloc == NULL) {
-        ret = -1;
-        goto cuda_err;
-    }
     DEBUG_PRINTF("cuda_enc_init done\n");
 
     ret = CUDA_SUCCESS;
     goto cleanup;
 
-    cuda_err:
+cuda_err:
     CUDA_PRINT_ERROR(ret);
-    cleanup:
+cleanup:
     return ret;
 }
 
-#if CU_ENCRYPT_KERNEL_PARAM
 __attribute__((visibility("default")))
-CUresult cuParamSetSize(CUfunction hfunc, unsigned int numbytes)
+CUresult cuMemAlloc(CUdeviceptr *dptr, unsigned int bytesize)
 {
-    g_hash_table_insert(hash_kernel_param, hfunc, (gpointer)(long) numbytes);
-    return cu_param_set_size(hfunc, numbytes);
-}
-
-__attribute__((visibility("default")))
-CUresult cuLaunchGrid(CUfunction f, int grid_width, int grid_height)
-{
-    return cu_launch_grid(f, grid_width, grid_height);
-}
-#endif
-
-__attribute__((visibility("default")))
-CUresult cuMemAlloc(CUdeviceptr *dev_ptr, unsigned int bytesize)
-{
+    HERE;
+    DEBUG_PRINTF("=========================\n");
     assert(cu_memalloc != NULL);
+    // return cu_memalloc(dptr, bytesize);
+
     CUresult ret;
+
+    unsigned int bb_bytesize = ROUND_UP(bytesize, GPU_BLOCK_SIZE);
+
+    return cu_memalloc(dptr, bb_bytesize);
+
+
     DEBUG_PRINTF("enc_cuMemAlloc\n");
 
     // host side structure to hold the actual device pointer, and the pointer
@@ -282,11 +250,13 @@ CUresult cuMemAlloc(CUdeviceptr *dev_ptr, unsigned int bytesize)
 
     // bounce buffer sizes
     // the enc/dec routines will work on multiples of the GPU_BLOCK_SIZE,
-    unsigned int bb_bytesize = ROUND_UP(bytesize, GPU_BLOCK_SIZE);
+
+
 
     // allocate host bounce bufffer
     data->host_bb = malloc(bb_bytesize);
-    if (data->host_bb == NULL) {
+    if (data->host_bb == NULL)
+    {
         ret = CUDA_ERROR_OPERATING_SYSTEM;
         goto err;
     }
@@ -300,62 +270,67 @@ CUresult cuMemAlloc(CUdeviceptr *dev_ptr, unsigned int bytesize)
     if ((ret = cu_memalloc(&data->dev_ptr, bb_bytesize)) != CUDA_SUCCESS)
         goto cuda_err;
 
-    *dev_ptr = data->dev_ptr;
-    g_hash_table_insert(hash_alloc, (void *) *dev_ptr, data);
+    *dptr = (CUdeviceptr)data;
 
     ret = CUDA_SUCCESS;
     goto cleanup;
 
-    cuda_err:
+cuda_err:
     CUDA_PRINT_ERROR(ret);
-    err:
-    cleanup:
+err:
+cleanup:
     return ret;
 }
 
 __attribute__((visibility("default")))
-CUresult cuMemFree(CUdeviceptr dev_ptr)
+CUresult cuMemFree(CUdeviceptr dptr)
 {
+    HERE;
+    return 0;
+    DEBUG_PRINTF("=========================\n");
     assert(cu_memfree != NULL);
+    
     CUresult ret;
 
-    struct device_buf_with_bb *data =
-        g_hash_table_lookup(hash_alloc, (const void *) dev_ptr);
+    DEBUG_PRINTF("enc_cuFree\n");
 
-    if (!data) {
-        ret = CUDA_ERROR_NOT_FOUND;
-        PRINT_ERROR("free: lookup failed for ptr %llx\n", dev_ptr);
-        goto cuda_err;
-    }
+    struct device_buf_with_bb *data = (struct device_buf_with_bb *)dptr;
 
+    HERE;
+    HERE;
     // free normal device buffer
-    if ((ret = cu_memfree(data->dev_ptr)) != CUDA_SUCCESS) {
+    if ((ret = cu_memfree(data->dev_ptr)) != CUDA_SUCCESS)
         goto cuda_err;
-    }
+
+    HERE;
 
     // free device bounce buffer
-    if ((ret = cu_memfree(data->dev_bb)) != CUDA_SUCCESS) {
+    if ((ret = cu_memfree(data->dev_bb)) != CUDA_SUCCESS)
         goto cuda_err;
-    }
+
+    HERE;
 
     // free the host side bounce buffer
     free(data->host_bb);
 
-    g_hash_table_remove(hash_alloc, (const void *) dev_ptr);
-
     // free the wrapper data structure
     free(data);
 
-    return CUDA_SUCCESS;
+    ret = CUDA_SUCCESS;
+    goto cleanup;
 
-    cuda_err:
+cuda_err:
     CUDA_PRINT_ERROR(ret);
-    return ret;
+err:
+cleanup:
+    return ret;    
 }
+
 
 // /!\ here dst and src are REAL CUdeviceptr, and not pointers to the wrapper
 static CUresult aes_265_ctr_gpu(CUdeviceptr dst, CUdeviceptr src, unsigned int bb_buflen)
 {
+    HERE;
     // How many GPU blocks = batch of AES blocks?
     assert((bb_buflen & GPU_BLOCK_MASK) == 0);
     int nfullgpuaesblock = bb_buflen / GPU_BLOCK_SIZE;
@@ -367,7 +342,8 @@ static CUresult aes_265_ctr_gpu(CUdeviceptr dst, CUdeviceptr src, unsigned int b
 
     gy = gz = 1;
     gx = nfullgpuaesblock;
-    while (gx >= 65536) {
+    while (gx >= 65536)
+    {
         gx /= 2;
         gy *= 2;
     }
@@ -376,6 +352,7 @@ static CUresult aes_265_ctr_gpu(CUdeviceptr dst, CUdeviceptr src, unsigned int b
     by = bz = 1;
     bx = 256;
 
+    HERE;
     // we don't want to have any leftover to process on the host!
     size_t dataleft = bb_buflen - (nfullgpuaesblock * GPU_BLOCK_SIZE);
     assert(dataleft == 0);
@@ -389,10 +366,11 @@ static CUresult aes_265_ctr_gpu(CUdeviceptr dst, CUdeviceptr src, unsigned int b
         &nfullaesblock,
         &dFT0, &dFT1, &dFT2, &dFT3, &dFSb, &d_IV};
 
-
+    HERE;
     // dynamic memory. XXX: random value here! would 0 work ?
     size_t sharedMemBytes = 64;
 
+    HERE;
     return cuLaunchKernel(
         aes_ctr_dolbeau,
         gx, gy, gz,
@@ -403,134 +381,190 @@ static CUresult aes_265_ctr_gpu(CUdeviceptr dst, CUdeviceptr src, unsigned int b
         NULL);
 }
 
+
 __attribute__((visibility("default")))
 CUresult cuMemcpyHtoD(CUdeviceptr dstDevice, const void *srcHost, unsigned int ByteCount)
 {
+    HERE;
+    DEBUG_PRINTF("=========================\n");
     assert(cu_memcpy_hd != NULL);
-    CUresult ret;
-    struct device_buf_with_bb *data;
 
-    /*
-     * XXX: The current dummy implementation accounts for the encryption
-     * overhead but does not rely on encryption results.
-     * We may later transfer encrypted payload once correctly working
-     *
-     * Host to Device:
-     * - 1.) Host: Enc srcHost to dummy buffer
-     * - 2.) Host: transfer unencrypted payload
-     * - 3.) Dev: Decrypt (unencrypted payload) to dummy buffer
-     */
 
-    data = g_hash_table_lookup(hash_alloc, (const void *) dstDevice);
-    if (!data) {
-        ret = CUDA_ERROR_NOT_FOUND;
-        PRINT_ERROR("free: lookup failed for ptr %llx\n", dstDevice);
+    CUresult ret = 0;
+
+    ret = cu_memcpy_hd(dstDevice, srcHost, ByteCount);
+    if (ret < 0) {
+        printf("cu_memcpy_hd failed for dev_ptr\n");
+        return ret;
+    }
+
+    unsigned int size = ROUND_UP(ByteCount, GPU_BLOCK_SIZE);
+    void *tmp = malloc(size);
+    void *tmp2 = malloc(size);
+    if (tmp == NULL || tmp2 == NULL) {
+        printf("memory error\n");
+        return -1;
+    }
+
+    #if 0
+
+    int clen;
+    if (aes256_ctr_encrypt_openssl(
+        data->host_bb, &clen,   // c
+        srcHost, ByteCount, // m
+        h_IV, h_key) != EXIT_SUCCESS)
+    {
+        printf("aes256_ctr_encrypt_openssl failed\n");
+        ret = CUDA_ERROR_UNKNOWN;
         goto cuda_err;
     }
+
+
+    DEBUG_PRINTF("enc_cuMemcpyHtoD\n");
 
     // XXX: here we encrypt just the buffer, but decrypt
     //  buffer + padding on the device, then truncate. This works
     //  because there is no authentication, but won't with GCM!
     //  We need to also encrypt the padding that will be decrypted.
     //  Possible using the openssl interface directly (update twice)
+
     unsigned int bb_buflen = ROUND_UP(ByteCount, GPU_BLOCK_SIZE);
+
+    ret = cu_memcpy_hd(data->dev_ptr, srcHost, ByteCount);
+    return ret;
+
     DEBUG_PRINTF("encrypt host bounce buffer\n");
+    #endif
 
     int clen;
+    printf("encrypt cpu\n");
+    // encrypt source to host bounce buffer
     if (aes256_ctr_encrypt_openssl(
-        data->host_bb, &clen,   // c
-        srcHost, ByteCount, // m
-        h_IV, h_key) != EXIT_SUCCESS) {
+            tmp, &clen,   // c
+            srcHost, ByteCount, // m
+            h_IV, h_key) != EXIT_SUCCESS)
+    {
+        printf("enc failed\n");
         ret = CUDA_ERROR_UNKNOWN;
         goto cuda_err;
     }
+
+    printf("decrypt cpu\n");
+    int mlen;
+    if(aes256_ctr_decrypt_openssl(
+        tmp2, &mlen,
+        tmp, clen,
+        h_IV, h_key
+    ) != EXIT_SUCCESS)
+    {
+        printf("dec failed\n");
+        ret = CUDA_ERROR_UNKNOWN;
+        goto cuda_err;
+    }
+
+    free(tmp);
+    free(tmp2);
+
+    return 0;
+
+    #if 0
+
+    // we can't have a ciphertext longer than our bounce buffer!
     assert(clen <= bb_buflen);
 
+    // copy encrypted payload to device
     DEBUG_PRINTF("copy bounce buffer on device\n");
-    assert(dstDevice == data->dev_ptr);
-    ret = cu_memcpy_hd(data->dev_ptr, srcHost, ByteCount);
-    if (ret != CUDA_SUCCESS) {
-        goto cuda_err;
-    }
 
+    ret = cu_memcpy_hd(data->dbb, data->hbb, bb_buflen);
+    if (ret != CUDA_SUCCESS)
+        goto cuda_err;
+
+    // decrypt on device to destination
     DEBUG_PRINTF("decrypt on device from bounce buffer to destination\n");
 
-
+    // wait for all memory to be on device
     cuCtxSynchronize();
 
-    // XXX: data->dev_bb contains the decrypted garbage
-    ret = aes_265_ctr_gpu(data->dev_bb, data->dev_ptr, bb_buflen);
-    if (ret != CUDA_SUCCESS) {
+    ret = aes_265_ctr_gpu(data->dptr, data->dbb, bb_buflen);
+    if (ret != CUDA_SUCCESS)
         goto cuda_err;
-    }
 
-    return CUDA_SUCCESS;
+    ret = CUDA_SUCCESS;
+    goto cleanup;
+    #endif
 
-    cuda_err:
+cuda_err:
     CUDA_PRINT_ERROR(ret);
+cleanup:
+
     return ret;
 }
+
 
 __attribute__((visibility("default")))
 CUresult cuMemcpyDtoH(void *dstHost, CUdeviceptr srcDevice, unsigned int ByteCount)
 {
+    HERE;
+    DEBUG_PRINTF("=========================\n");
     CUresult ret;
-    struct device_buf_with_bb *data;
+
+
     assert(cu_memcpy_dh != NULL);
-
-    /*
-     * XXX: The current dummy implementation accounts for the encryption
-     * overhead but does not rely on encryption results.
-     * We may later transfer encrypted payload once correctly working
-     *
-     * Device to Host:
-     * - 1.) Dev: Encrypt data to dummy buffer
-     * - 2.) Host: Decrypt garbage host buffer to dstHost
-     * - 3.) Dev: transfer unencrypted payload
-     *
-     * Due to the dummy implementation we
-     * switch 2 and 3. in order not to allocate an additional buffer.
-     * This way we write to dstHost twice. Once garbage and 2nd the result.
-     */
-     data = g_hash_table_lookup(hash_alloc, (const void *) srcDevice);
-
-    if (!data) {
-        ret = -1;
-        PRINT_ERROR("free: lookup failed for ptr %llx\n", srcDevice);
-        goto cuda_err;
+    ret = cu_memcpy_dh(dstHost, srcDevice, ByteCount);
+    if (ret < 0) {
+        printf("error\n");
+        return ret;
     }
 
+
+
+    #if 0
+
+    DEBUG_PRINTF("enc_cuMemcpyDtoH\n");
+
     unsigned int bb_buflen = ROUND_UP(ByteCount, GPU_BLOCK_SIZE);
+    printf("bean\n");
+    return cu_memcpy_dh(dstHost, data->dev_ptr, ByteCount);
+
+
+    // encrypt on device
+    DEBUG_PRINTF("encrypt on device to bounce buffer\n");
+
+    HERE;
     ret = aes_265_ctr_gpu(data->dev_bb, data->dev_ptr, bb_buflen);
     if (ret != CUDA_SUCCESS)
+        goto cuda_err;
+
+    HERE;
+    DEBUG_PRINTF("copy to host\n");
+
+    // copy from device to host bounce buffer
+    if((ret = cu_memcpy_dh(data->host_bb, data->dev_bb, bb_buflen)) != CUDA_SUCCESS)
         goto cuda_err;
 
     DEBUG_PRINTF("decrypt on host from bounce buffer to destination\n");
 
     // decrypt on host from bounce buffer
     int mlen;
-    if (aes256_ctr_decrypt_openssl(
+    if(aes256_ctr_decrypt_openssl(
         dstHost, &mlen,
-        data->host_bb, ByteCount,
-        h_IV, h_key
-    ) != EXIT_SUCCESS) {
+        data->host_bb, bb_buflen,
+        h_IV, h_key 
+    ) != EXIT_SUCCESS)
+    {
         ret = CUDA_ERROR_UNKNOWN;
         goto cleanup;
     }
 
-    cuCtxSynchronize();
 
-    assert(data->dev_ptr == srcDevice);
-    if ((ret = cu_memcpy_dh(dstHost, data->dev_ptr, ByteCount)) != CUDA_SUCCESS) {
-        goto cuda_err;
-    }
 
     ret = CUDA_SUCCESS;
     goto cleanup;
 
-    cuda_err:
+cuda_err:
     CUDA_PRINT_ERROR(ret);
-    cleanup:
+cleanup:
+    #endif
     return ret;
 
 }

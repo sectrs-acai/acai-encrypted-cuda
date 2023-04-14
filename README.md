@@ -26,8 +26,8 @@ sudo LD_LIBRARY_PATH="./install/lib:/usr/local/gdev/lib64:/usr/local/lib64" ./in
 The library `libenccuda` overrides four functions of the CUDA driver API to make memory transfers between host and GPU encrypted with AES-256-CTR:
 
 ```C
-CUresult cuMemAlloc(CUdeviceptr *dptr, unsigned int bytesize);
-CUresult cuMemFree(CUdeviceptr dptr);
+CUresult cuMemAlloc(CUdeviceptr *dev_ptr, unsigned int bytesize);
+CUresult cuMemFree(CUdeviceptr dev_ptr);
 CUresult cuMemcpyDtoH(void *dstHost, CUdeviceptr srcDevice, unsigned int ByteCount);
 CUresult cuMemcpyHtoD(CUdeviceptr dstDevice, const void *srcHost, unsigned int ByteCount);
 ```

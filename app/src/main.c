@@ -90,6 +90,7 @@ int main(int argc, char ** argv)
 	printf("\n");
 
 
+
     // Free CUDA buffers
 	ret = cuMemFree(a_dev);
 	if (ret != CUDA_SUCCESS) {
