@@ -11,8 +11,8 @@ GDEV_PREFIX ?= /usr/local
 
 CPPFLAGS+=-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3 -D_GLIBCXX_ASSERTIONS -DOPENSSL_NO_DEPRECATED
 CPPFLAGS+=-Iinclude -Ireferences
-CFLAGS+=-shared -fPIC -O2 -flto -fvisibility=hidden -fexceptions
 
+CFLAGS+=-shared -fPIC -O2 -flto -fvisibility=hidden -fexceptions
 LDFLAGS+=-Wl,-z,noexecstack,-z,relro,-z,defs,-z,now
 
 NVCCFLAGS+=-arch sm_21 -cubin -Xcompiler "-march=native -O2"
@@ -24,6 +24,11 @@ CPPFLAGS+=-D_GNU_SOURCE
 # - CUDA driver from gdev
 # - libcrypto
 # - ld.so
+
+ifdef NDEBUG
+CFLAGS+= -DNDEBUG
+$(warning NDEBUG=1 is set)
+endif
 
 CPPFLAGS+=-I$(INCLUDE_DIR) -I$(GDEV_PREFIX)/gdev/include $(shell pkg-config --cflags --libs glib-2.0)
 LDFLAGS+=-L$(LIBDIR) -L$(GDEV_PREFIX)/gdev/lib64

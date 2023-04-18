@@ -12,13 +12,13 @@
 
 #define HERE printf("[debug] %s/%s: %d\n", __FILE__, __FUNCTION__, __LINE__)
 
-#ifndef NDEBUG
-#define DEBUG_PRINTF(fmt...) fprintf(stderr, fmt)
 #define CUDA_PRINT_ERROR(e) \
 	cuda_print_error(__FILE__, __LINE__, e)
+
+#ifndef NDEBUG
+#define DEBUG_PRINTF(fmt...) fprintf(stderr, fmt)
 #else
 #define DEBUG_PRINTF(fmt...)
-#define CUDA_PRINT_ERROR(e)
 #endif
 
 static inline void cuda_print_error(char * file, int line, CUresult e)

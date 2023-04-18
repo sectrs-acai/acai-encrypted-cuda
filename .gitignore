@@ -1,3 +1,4 @@
 /.idea/
 /install/
 *.o
+/enc_cuda/*.so

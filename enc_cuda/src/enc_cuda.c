@@ -97,6 +97,7 @@ __attribute__((visibility("default")))
 CUresult cuda_enc_setup(char *key, char *iv)
 {
     CUresult ret;
+    printf("enccuda\n");
     DEBUG_PRINTF("cuda_enc_setup\n");
 
     cu_memalloc = dlsym(RTLD_NEXT, "cuMemAlloc");
