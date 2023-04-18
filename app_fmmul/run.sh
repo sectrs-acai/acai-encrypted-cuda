@@ -6,6 +6,6 @@ cd ../
 cd $C
 make clean
 make gcc
-cd src
-sudo LD_LIBRARY_PATH=/usr/local/gdev/lib64/:../../install/lib ./../cuda_enc_app
+
+sudo LD_LIBRARY_PATH=/usr/local/gdev/lib64/:../install/lib ./cuda_enc_app
 

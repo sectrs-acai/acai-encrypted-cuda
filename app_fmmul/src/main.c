@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
     if (argc > 1)
         n = atoi(argv[1]);
 
-    if (cuda_test_fmmul(n, ".") < 0)
+    if (cuda_test_fmmul(n, "./src/") < 0)
         printf("Test failed\n");
     else
         printf("Test passed\n");

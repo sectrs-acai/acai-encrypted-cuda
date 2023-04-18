@@ -18,10 +18,9 @@
 #include <glib.h>
 
 /*
- * TODO: Do we care about encryption of kernel parameters?
- * Not yet fully implemented, set to 1 once done
+ * XXX Set to 1 to encrypt kernel params
  */
-#define CU_ENCRYPT_KERNEL_PARAM 0
+#define CU_ENCRYPT_KERNEL_PARAM 1
 
 // Internal type passed to the user as a CUdeviceptr pointer.
 // Wraps a CUdeviceptr, and associates it with two bounce buffers
@@ -46,6 +45,13 @@ static GHashTable *hash_alloc = NULL;
 
 #if CU_ENCRYPT_KERNEL_PARAM
 static GHashTable *hash_kernel_param = NULL;
+/*
+ * static max size for kernel parameters
+ * to account for encryption overhead of kernel parameters
+ */
+#define KERNEL_PARAM_ENC_BUFFER_SIZE (ROUND_UP(0x2000, GPU_BLOCK_SIZE))
+static CUdeviceptr kernel_param_dev_ptr = 0;
+char *kernel_param_src_buf = NULL;
 #endif
 
 // Recover the original CUDA function pointers
@@ -53,6 +59,8 @@ cu_memalloc_func_t *cu_memalloc;
 cu_memfree_func_t *cu_memfree;
 cu_memcpy_d_to_h_func_t *cu_memcpy_dh;
 cu_memcpy_h_to_d_func_t *cu_memcpy_hd;
+cu_launch_grid_t *cu_launch_grid;
+cu_param_set_size_t *cu_param_set_size;
 
 static int get_lib_load_path(char *load_path, size_t load_path_buflen)
 {
@@ -86,10 +94,22 @@ static int get_lib_load_path(char *load_path, size_t load_path_buflen)
 __attribute__((visibility("default")))
 CUresult cuda_enc_release()
 {
+    #if CU_ENCRYPT_KERNEL_PARAM
+    if (kernel_param_dev_ptr != 0) {
+        cuMemFree(kernel_param_dev_ptr);
+        kernel_param_dev_ptr = 0;
+    }
+    if (kernel_param_src_buf != NULL) {
+        free(kernel_param_src_buf);
+    }
+    if (hash_kernel_param != NULL) {
+        g_hash_table_destroy(hash_kernel_param);
+    }
+    #endif
+
     if (hash_alloc != NULL) {
         g_hash_table_destroy(hash_alloc);
     }
-
     return CUDA_SUCCESS;
 }
 
@@ -244,6 +264,29 @@ CUresult cuda_enc_setup(char *key, char *iv)
         ret = -1;
         goto cuda_err;
     }
+
+    #if CU_ENCRYPT_KERNEL_PARAM
+    /*
+     * Allocate a memory region used to account
+     * for kernel parameter encryption during kernel launch
+     * Arguments cant be larger than KERNEL_PARAM_ENC_BUFFER_SIZE
+     * XXX: use cuMemAlloc to allocate bounce buffer struct, must
+     *      be after init of cuMemAlloc
+     */
+    ret = cuMemAlloc(&kernel_param_dev_ptr, KERNEL_PARAM_ENC_BUFFER_SIZE);
+    if (ret != CUDA_SUCCESS) {
+        PRINT_ERROR("cant allocate kernel_param_dev_ptr with size: %d\n",
+                    KERNEL_PARAM_ENC_BUFFER_SIZE);
+        goto cuda_err;
+    }
+    kernel_param_src_buf = malloc(KERNEL_PARAM_ENC_BUFFER_SIZE);
+    if (kernel_param_src_buf == NULL) {
+        PRINT_ERROR("kernel_param_src_buf failed to malloc\n");
+        ret = CUDA_ERROR_OUT_OF_MEMORY;
+        goto cuda_err;
+    }
+    #endif
+
     DEBUG_PRINTF("cuda_enc_init done\n");
 
     ret = CUDA_SUCCESS;
@@ -254,21 +297,6 @@ CUresult cuda_enc_setup(char *key, char *iv)
     cleanup:
     return ret;
 }
-
-#if CU_ENCRYPT_KERNEL_PARAM
-__attribute__((visibility("default")))
-CUresult cuParamSetSize(CUfunction hfunc, unsigned int numbytes)
-{
-    g_hash_table_insert(hash_kernel_param, hfunc, (gpointer)(long) numbytes);
-    return cu_param_set_size(hfunc, numbytes);
-}
-
-__attribute__((visibility("default")))
-CUresult cuLaunchGrid(CUfunction f, int grid_width, int grid_height)
-{
-    return cu_launch_grid(f, grid_width, grid_height);
-}
-#endif
 
 __attribute__((visibility("default")))
 CUresult cuMemAlloc(CUdeviceptr *dev_ptr, unsigned int bytesize)
@@ -325,7 +353,7 @@ CUresult cuMemFree(CUdeviceptr dev_ptr)
 
     if (!data) {
         ret = CUDA_ERROR_NOT_FOUND;
-        PRINT_ERROR("free: lookup failed for ptr %llx\n", dev_ptr);
+        PRINT_ERROR("free: lookup failed for ptr %ld\n", dev_ptr);
         goto cuda_err;
     }
 
@@ -456,7 +484,6 @@ CUresult cuMemcpyHtoD(CUdeviceptr dstDevice, const void *srcHost, unsigned int B
 
     DEBUG_PRINTF("decrypt on device from bounce buffer to destination\n");
 
-
     cuCtxSynchronize();
 
     // XXX: data->dev_bb contains the decrypted garbage
@@ -493,7 +520,7 @@ CUresult cuMemcpyDtoH(void *dstHost, CUdeviceptr srcDevice, unsigned int ByteCou
      * switch 2 and 3. in order not to allocate an additional buffer.
      * This way we write to dstHost twice. Once garbage and 2nd the result.
      */
-     data = g_hash_table_lookup(hash_alloc, (const void *) srcDevice);
+    data = g_hash_table_lookup(hash_alloc, (const void *) srcDevice);
 
     if (!data) {
         ret = -1;
@@ -535,3 +562,87 @@ CUresult cuMemcpyDtoH(void *dstHost, CUdeviceptr srcDevice, unsigned int ByteCou
     return ret;
 
 }
+
+#if CU_ENCRYPT_KERNEL_PARAM
+__attribute__((visibility("default")))
+CUresult cuParamSetSize(CUfunction hfunc, unsigned int numbytes)
+{
+    if (numbytes > KERNEL_PARAM_ENC_BUFFER_SIZE) {
+        numbytes = KERNEL_PARAM_ENC_BUFFER_SIZE;
+        PRINT_ERROR("cuParamSetSize size: %ud is larger than prealloced %d bytes\n",
+                    numbytes,
+                    KERNEL_PARAM_ENC_BUFFER_SIZE
+        );
+    }
+    g_hash_table_insert(hash_kernel_param, hfunc,
+                        GINT_TO_POINTER(ROUND_UP(numbytes, GPU_BLOCK_SIZE)));
+    return cu_param_set_size(hfunc, numbytes);
+}
+
+static CUresult launch_encryption_overhead(
+    CUfunction f,
+    int grid_width,
+    int grid_height)
+{
+    CUresult ret;
+    struct device_buf_with_bb *data;
+    unsigned char *host_bb = NULL;
+    unsigned char *src_host = NULL;
+    long byte_count;
+    byte_count = (long) g_hash_table_lookup(hash_kernel_param, (const void *) f);
+    if (!byte_count) {
+        ret = CUDA_ERROR_NOT_FOUND;
+        PRINT_ERROR("free: lookup failed for ptr %llx\n", f);
+        return ret;
+    }
+    data = g_hash_table_lookup(hash_alloc, (const void *) kernel_param_dev_ptr);
+    if (!data) {
+        ret = CUDA_ERROR_NOT_FOUND;
+        PRINT_ERROR("g_hash_table_lookup failed for kernel param %llx\n", kernel_param_dev_ptr);
+        return ret;
+    }
+
+    host_bb = data->host_bb;
+    src_host = (unsigned char *) kernel_param_src_buf;
+
+    /*
+     * Dummy encryption to account for overhead
+     */
+    int clen;
+    if (aes256_ctr_encrypt_openssl(
+        host_bb, &clen,   // c
+        src_host, byte_count, // m
+        h_IV, h_key) != EXIT_SUCCESS) {
+        ret = CUDA_ERROR_UNKNOWN;
+        return ret;
+    }
+    assert(clen <= byte_count);
+
+    ret = aes_265_ctr_gpu(data->dev_bb, data->dev_ptr, byte_count);
+    if (ret != CUDA_SUCCESS) {
+        return ret;
+    }
+    return CUDA_SUCCESS;
+}
+
+__attribute__((visibility("default")))
+CUresult cuLaunchGrid(CUfunction f, int grid_width, int grid_height)
+{
+    CUresult ret, launch_ret;
+    launch_ret = cu_launch_grid(f, grid_width, grid_height);
+    if (launch_ret != CUDA_SUCCESS) {
+        PRINT_ERROR("cu_launch_grid failed with %d\n", launch_ret);
+        return launch_ret;
+    }
+    /*
+     * XXX: Encryption routine of aes_ctr_dolbeau kernel itself calls cuLaunchGrid
+     */
+    if (f != aes_ctr_dolbeau) {
+        ret = launch_encryption_overhead(f, grid_width, grid_height);
+        if (ret != CUDA_SUCCESS) {
+            PRINT_ERROR("launch_encryption_overhead failed with %d\n", ret);
+        }
+    }
+    return launch_ret;
+}
+#endif

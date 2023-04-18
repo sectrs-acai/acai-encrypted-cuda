@@ -12,7 +12,7 @@ GDEV_PREFIX ?= /usr/local
 CPPFLAGS+=-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3 -D_GLIBCXX_ASSERTIONS -DOPENSSL_NO_DEPRECATED
 CPPFLAGS+=-Iinclude -Ireferences
 
-CFLAGS+=-shared -fPIC -O2 -flto -fvisibility=hidden -fexceptions
+CFLAGS+=-shared -fPIC -O2 -flto -fvisibility=hidden -fexceptions -Wno-format
 LDFLAGS+=-Wl,-z,noexecstack,-z,relro,-z,defs,-z,now
 
 NVCCFLAGS+=-arch sm_21 -cubin -Xcompiler "-march=native -O2"
