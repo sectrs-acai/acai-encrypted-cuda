@@ -638,6 +638,11 @@ CUresult cuLaunchGrid(CUfunction f, int grid_width, int grid_height)
      * XXX: Encryption routine of aes_ctr_dolbeau kernel itself calls cuLaunchGrid
      */
     if (f != aes_ctr_dolbeau) {
+        /*
+         * XXX: wait until kernel is launched,
+         *      to reflect data dependency on kernel and encryption
+         */
+        cuCtxSynchronize();
         ret = launch_encryption_overhead(f, grid_width, grid_height);
         if (ret != CUDA_SUCCESS) {
             PRINT_ERROR("launch_encryption_overhead failed with %d\n", ret);
