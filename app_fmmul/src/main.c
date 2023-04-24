@@ -102,7 +102,7 @@ int cuda_test_fmmul(unsigned int n, char *path)
         return -1;
     }
 
-    res = cuCtxCreate(&ctx, 0, dev);
+    res = cuCtxCreate(&ctx, CU_CTX_SCHED_BLOCKING_SYNC, dev);
     if (res != CUDA_SUCCESS) {
         printf("cuCtxCreate failed: res = %lu\n", (unsigned long) res);
         return -1;
