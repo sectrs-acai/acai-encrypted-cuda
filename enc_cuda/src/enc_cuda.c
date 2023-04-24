@@ -1,6 +1,7 @@
 #include "enc_cuda/enc_cuda.h"
 #include "helpers.h"
 #include "aes_cpu.h"
+#include "cca_benchmark.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -434,6 +435,7 @@ CUresult cuMemFree(CUdeviceptr dev_ptr)
 static CUresult aes_265_ctr_gpu(CUdeviceptr dst, CUdeviceptr src, unsigned int bb_buflen)
 {
     DEBUG_PRINTF("aes_265_ctr_gpu dst: %lx, src: %lx, s: %lx\n", dst, src, bb_buflen);
+    CCA_MARKER_GPU_ENC_KERNEL;
 
     // How many GPU blocks = batch of AES blocks?
     assert((bb_buflen & GPU_BLOCK_MASK) == 0);

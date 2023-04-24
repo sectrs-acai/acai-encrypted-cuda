@@ -1,9 +1,12 @@
 #include "aes_cpu.h"
 #include "helpers.h"
+#include "cca_benchmark.h"
 
 #include <openssl/conf.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
+
+
 
 /* AES-256-CTR mode encryption. */
 int aes256_ctr_encrypt_openssl(
@@ -14,6 +17,7 @@ int aes256_ctr_encrypt_openssl(
 )
 {
 	int ret = EXIT_FAILURE;
+    CCA_MARKER_CPU_ENC;
 
 	DEBUG_PRINTF("aes256_ctr_encrypt_openssl\n");
 
@@ -56,6 +60,7 @@ int aes256_ctr_decrypt_openssl(
 )
 {
 	int ret = EXIT_FAILURE;
+    CCA_MARKER_CPU_DEC;
 
 
 	DEBUG_PRINTF("aes256_ctr_decrypt_openssl\n");
