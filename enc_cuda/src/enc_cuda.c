@@ -108,32 +108,34 @@ __attribute__((visibility("default"))) CUresult cuda_enc_release()
      * free itself relies on some of the data to be freed
      */
     if (d_aes_erdk != 0) {
-        cuMemFree(d_aes_erdk);
+        cu_memfree(d_aes_erdk);
     }
     if (d_IV != 0) {
-        cuMemFree(d_IV);
+        cu_memfree(d_IV);
     }
     if (dFT0 != 0) {
-        cuMemFree(dFT0);
+        cu_memfree(dFT0);
     }
     if (dFT1 != 0) {
-        cuMemFree(dFT1);
+        cu_memfree(dFT1);
     }
     if (dFT2 != 0) {
-        cuMemFree(dFT2);
+        cu_memfree(dFT2);
     }
     if (dFT3 != 0) {
-        cuMemFree(dFT3);
+        cu_memfree(dFT3);
     }
     if (dFSb != 0) {
-        cuMemFree(dFSb);
+        cu_memfree(dFSb);
     }
     if (cu_module_get_global_buffer_dev_ptr != 0) {
+        /* use cuMemFree not cu_memfree to delete bounce buffers */
         cuMemFree(cu_module_get_global_buffer_dev_ptr);
     }
 
     #if CU_ENCRYPT_KERNEL_PARAM
     if (kernel_param_dev_ptr != 0) {
+        /* use cuMemFree not cu_memfree to delete bounce buffers */
         cuMemFree(kernel_param_dev_ptr);
         kernel_param_dev_ptr = 0;
     }
