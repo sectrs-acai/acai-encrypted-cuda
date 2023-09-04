@@ -15,6 +15,7 @@
 #define CUDA_PRINT_ERROR(e) \
 	cuda_print_error(__FILE__, __LINE__, e)
 
+
 #ifndef NDEBUG
 #define DEBUG_PRINTF(fmt...) fprintf(stderr, fmt)
 #else

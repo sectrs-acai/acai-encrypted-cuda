@@ -102,8 +102,27 @@ static int get_lib_load_path(char *load_path, size_t load_path_buflen)
     return EXIT_SUCCESS;
 }
 
+CUdevice cuda_dev;
+CUcontext cuda_ctx;
+
+#define SET_CTX \
+CUcontext oldCtx; \
+cuCtxGetCurrent(&oldCtx); \
+cuCtxSetCurrent(cuda_ctx)
+
+// cuCtxSetCurrent(oldCtx)
+#define RESTORE_CTX
+
+
 __attribute__((visibility("default"))) CUresult cuda_enc_release()
 {
+    /*
+     * XXX: Freeing with ocelot runtime api seems to crash code
+     *
+     */
+    return 0;
+    cuCtxSetCurrent(cuda_ctx);
+
     /*
      * XXX: Watch out,
      * free itself relies on some of the data to be freed
@@ -111,24 +130,31 @@ __attribute__((visibility("default"))) CUresult cuda_enc_release()
     if (d_aes_erdk != 0) {
         cu_memfree(d_aes_erdk);
     }
+
     if (d_IV != 0) {
         cu_memfree(d_IV);
     }
+
     if (dFT0 != 0) {
         cu_memfree(dFT0);
     }
+
     if (dFT1 != 0) {
         cu_memfree(dFT1);
     }
+
     if (dFT2 != 0) {
         cu_memfree(dFT2);
     }
+
     if (dFT3 != 0) {
         cu_memfree(dFT3);
     }
+
     if (dFSb != 0) {
         cu_memfree(dFSb);
     }
+
     if (cu_module_get_global_buffer_dev_ptr != 0) {
         /* use cuMemFree not cu_memfree to delete bounce buffers */
         cuMemFree(cu_module_get_global_buffer_dev_ptr);
@@ -148,20 +174,60 @@ __attribute__((visibility("default"))) CUresult cuda_enc_release()
     }
     #endif
 
+
     if (hash_alloc != NULL) {
         g_hash_table_destroy(hash_alloc);
     }
 
+    // cuCtxDestroy(cuda_ctx);
+    // RESTORE_CTX;
     return CUDA_SUCCESS;
 }
+
+
+static CUresult create_ctx(void) {
+    CUcontext ctx;
+    CUresult ret;
+    cuCtxGetCurrent(&ctx);
+    ret = CUDA_SUCCESS;
+    if (ctx == NULL) {
+        ret = cuInit(0);
+        if (ret != CUDA_SUCCESS) {
+            printf("cuInit failed: res = %lu\n", (unsigned long) ret);
+            return ret;
+        }
+        ret = cuDeviceGet(&cuda_dev, 0);
+        if (ret != CUDA_SUCCESS) {
+            printf("cuDeviceGet failed: res = %lu\n", (unsigned long) ret);
+            return ret;
+        }
+
+        ret = cuCtxCreate(&cuda_ctx, CU_CTX_SCHED_BLOCKING_SYNC, cuda_dev);
+        if (ret != CUDA_SUCCESS) {
+            printf("cuCtxCreate failed: res = %lu\n", (unsigned long) ret);
+            return ret;
+        }
+    }
+    return ret;
+}
+
 
 __attribute__((visibility("default")))
 CUresult cuda_enc_setup(char *key, char *iv)
 {
+    /*
+     * XXX: When invoked through runtime api, we dont have a context yet
+     * and must manually create one
+     */
     CUresult ret;
-    printf("enccuda\n");
-    DEBUG_PRINTF("cuda_enc_setup\n");
+    ret = create_ctx();
+    if (ret != CUDA_SUCCESS) {
+        printf("create_ctx failed with: %d\n", ret);
+        return ret;
+    }
+    SET_CTX;
 
+    DEBUG_PRINTF("cuda_enc_setup\n");
     cu_memalloc = dlsym(RTLD_NEXT, "cuMemAlloc");
     assert(cu_memalloc != NULL);
 
@@ -199,21 +265,31 @@ CUresult cuda_enc_setup(char *key, char *iv)
 
     DEBUG_PRINTF("Loaded from path = %s\n", load_path);
 
+
     char module_name[256];
     snprintf(module_name, sizeof(module_name), "%s/../share/enc_cuda/aes_gpu.cubin", load_path);
     DEBUG_PRINTF("load module %s\n", module_name);
 
     /* Load ciper function */
     CUmodule module;
+    printf("module_name: %s\n", module_name);
     ret = cuModuleLoad(&module, module_name);
-    if (ret != CUDA_SUCCESS)
+    if (ret != CUDA_SUCCESS) {
+        HERE;
         goto cuda_err;
+    }
+
+
 
     ret = cuModuleGetFunction(&aes_ctr_dolbeau,
                               module,
                               "aes_ctr_cuda_BTB32SRDIAGKEY0_PRMT_8nocoalnocoal");
-    if (ret != CUDA_SUCCESS)
+
+    if (ret != CUDA_SUCCESS) {
+        HERE;
         goto cuda_err;
+    }
+
 
 
     /* Setup keys, initial counter value and precomputed tables */
@@ -344,12 +420,14 @@ CUresult cuda_enc_setup(char *key, char *iv)
     cuda_err:
     CUDA_PRINT_ERROR(ret);
     cleanup:
+    RESTORE_CTX;
     return ret;
 }
 
 __attribute__((visibility("default")))
 CUresult cuMemAlloc(CUdeviceptr *dev_ptr, unsigned int bytesize)
 {
+    SET_CTX;
     assert(cu_memalloc != NULL);
     CUresult ret;
     DEBUG_PRINTF("enc_cuMemAlloc\n");
@@ -388,12 +466,14 @@ CUresult cuMemAlloc(CUdeviceptr *dev_ptr, unsigned int bytesize)
     CUDA_PRINT_ERROR(ret);
     err:
     cleanup:
+    RESTORE_CTX;
     return ret;
 }
 
 __attribute__((visibility("default")))
 CUresult cuMemFree(CUdeviceptr dev_ptr)
 {
+    SET_CTX;
     assert(cu_memfree != NULL);
     CUresult ret;
 
@@ -424,10 +504,14 @@ CUresult cuMemFree(CUdeviceptr dev_ptr)
     // free the wrapper data structure
     free(data);
 
-    return CUDA_SUCCESS;
+    ret =  CUDA_SUCCESS;
+    goto cleanup;
 
     cuda_err:
     CUDA_PRINT_ERROR(ret);
+
+    cleanup:
+    RESTORE_CTX;
     return ret;
 }
 
@@ -494,6 +578,7 @@ inline static CUresult do_cuMemcpyHtoD(CUdeviceptr dstDevice,
 
     assert(cu_memcpy_hd != NULL);
     CUresult ret;
+    SET_CTX;
 
     CUdeviceptr dev_ptr = dstDevice;
     CUdeviceptr dev_bb = data->dev_bb;
@@ -618,6 +703,7 @@ CUresult cuMemcpyDtoH(
 {
     struct device_buf_with_bb *data;
     assert(cu_memcpy_dh != NULL);
+    SET_CTX;
 
     data = g_hash_table_lookup(hash_alloc, (const void *) srcDevice);
     if (!data) {
@@ -648,6 +734,7 @@ CUresult cuMemcpyHtoD(
 {
     assert(cu_memcpy_hd != NULL);
     struct device_buf_with_bb *data;
+    SET_CTX;
 
     data = g_hash_table_lookup(hash_alloc, (const void *) dstDevice);
     if (!data) {
@@ -744,6 +831,7 @@ __attribute__((visibility("default")))
 CUresult cuLaunchGrid(CUfunction f, int grid_width, int grid_height)
 {
     CUresult ret, launch_ret;
+    SET_CTX;
     launch_ret = cu_launch_grid(f, grid_width, grid_height);
     if (launch_ret != CUDA_SUCCESS) {
         PRINT_ERROR("cu_launch_grid failed with %d\n", launch_ret);
