@@ -3,11 +3,11 @@ CC ?=$(CROSS_COMPILE)gcc
 NVCC=nvcc
 
 PREFIX=install
-LIBDIR=$(PREFIX)/lib
+LIBDIR=$(PREFIX)/lib64
 INCLUDE_DIR=$(PREFIX)/include
 SHARE_DIR=$(PREFIX)/share/enc_cuda
 
-GDEV_PREFIX ?= /usr/local
+GDEV_PREFIX ?= $(STAGING_DIR)/usr/local
 
 CPPFLAGS+=-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3 -D_GLIBCXX_ASSERTIONS -DOPENSSL_NO_DEPRECATED
 CPPFLAGS+=-Iinclude -Ireferences
@@ -25,6 +25,7 @@ CPPFLAGS+=-D_GNU_SOURCE
 # - libcrypto
 # - ld.so
 
+NDEBUG=1
 ifdef NDEBUG
 CFLAGS+= -DNDEBUG
 $(warning NDEBUG=1 is set)
