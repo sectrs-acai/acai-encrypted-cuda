@@ -23,7 +23,8 @@ sudo LD_LIBRARY_PATH="./install/lib:/usr/local/gdev/lib64:/usr/local/lib64" ./in
 
 ## "Encrypted CUDA" library
 
-The library `libenccuda` overrides four functions of the CUDA driver API to make memory transfers between host and GPU encrypted with AES-256-CTR:
+The library `libenccuda` overrides functions of the CUDA driver API to make
+memory transfers between host and GPU encrypted with AES-256-CTR:
 
 ```C
 CUresult cuMemAlloc(CUdeviceptr *dev_ptr, unsigned int bytesize);
@@ -32,7 +33,8 @@ CUresult cuMemcpyDtoH(void *dstHost, CUdeviceptr srcDevice, unsigned int ByteCou
 CUresult cuMemcpyHtoD(CUdeviceptr dstDevice, const void *srcHost, unsigned int ByteCount);
 ```
 
-In addition, it exposes a function used to setup the symmetric key, initial counter value, and prepare the GPU for AES encryption:
+In addition, it exposes a function used to setup the symmetric key, initial
+counter value, and prepare the GPU for AES encryption:
 
 ```
 CUresult cuda_enc_setup(char * key, char * iv);
@@ -52,12 +54,9 @@ The AES routines used are:
 
 ## Test app
 
-`app` contains an example that simply copies memory to the device, and back to the host.
-
-
+`app` contains an example that simply copies memory to the device, and back to
+the host.
 
 # Limitations
-
-- The counter value is NOT incremented between encryptions!!!
-- This is not AES-GCM!
-- I intended to test a second implementation (in the repo at `enc_cuda/references/burcel`), but currently only tested the AES ciphers from R. Dolbeau. The second implementation is the result of a master thesis.
+- The counter value is NOT incremented between encryptions
+- This is not AES-GCM
