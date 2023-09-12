@@ -50,7 +50,7 @@ The AES routines used are:
     + At the time of writing, his webpage seems to be down, but is still available on <archive.org>:
         * [project presentation and code](https://web.archive.org/web/20221127200344/http://dolbeau.name/dolbeau/crypto/crypto.html)
         * [the WIP paper](https://web.archive.org/web/20210813051708/http://www.dolbeau.name/dolbeau/publications/aes_gcm_gpu.pdf)
-    + More specifically, I only tried using the function that is reported as most high-performing in the paper (`aes_ctr_cuda_BTB32SRDIAGKEY0_PRMT_8nocoalnocoal`).
+    + More specifically, we only tried using the function that is reported as most high-performing in the paper (`aes_ctr_cuda_BTB32SRDIAGKEY0_PRMT_8nocoalnocoal`).
 
 ## Test app
 
